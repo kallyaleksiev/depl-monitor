@@ -1,0 +1,27 @@
+# permissions for end users to view mondepls.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: clusterrole
+    app.kubernetes.io/instance: mondepl-viewer-role
+    app.kubernetes.io/component: rbac
+    app.kubernetes.io/created-by: depl-monitor
+    app.kubernetes.io/part-of: depl-monitor
+    app.kubernetes.io/managed-by: kustomize
+  name: mondepl-viewer-role
+rules:
+- apiGroups:
+  - kally.io.kally.io
+  resources:
+  - mondepls
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - kally.io.kally.io
+  resources:
+  - mondepls/status
+  verbs:
+  - get

@@ -1,0 +1,29 @@
+apiVersion: kally.io.kally.io/v1alpha1
+kind: MonDepl
+metadata:
+  labels:
+    app.kubernetes.io/name: mondepl
+    app.kubernetes.io/instance: mondepl-sample
+    app.kubernetes.io/part-of: depl-monitor
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/created-by: depl-monitor
+  name: mondepl-sample
+spec:
+  reason: "stupid"
+  configs:
+    one: "two"
+    three: "four"
+  underlying:
+    replicas: 1
+    selector:
+      matchLabels:
+        app: busybox
+    template:
+      metadata:
+        labels:
+          app: busybox
+      spec:
+        containers:
+        - name: busybox
+          image: busybox:latest
+          command: ["sh", "-c", "while true; do sleep 3600; done"]

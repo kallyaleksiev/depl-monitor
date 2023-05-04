@@ -7,4 +7,14 @@ layout:
 - go.kubebuilder.io/v3
 projectName: depl-monitor
 repo: github.com/kallyaleksiev/depl-monitor
+resources:
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: kally.io
+  group: kally.io
+  kind: MonDepl
+  path: github.com/kallyaleksiev/depl-monitor/api/v1alpha1
+  version: v1alpha1
 version: "3"
