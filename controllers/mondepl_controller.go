@@ -52,13 +52,43 @@ func (r *MonDeplReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	// return ctrl.Result{Requeue: true}, fmt.Errorf("pls redo")
 	logger := log.FromContext(ctx)
 
-	var monDepl *v1alpha1.MonDepl
-	if err := r.Get(ctx, req.NamespacedName, monDepl); err != nil {
-		logger.Error(err, "Could not get MonDepl...")
-		return ctrl.Result{}, client.IgnoreNotFound(err)
+	var monDepl v1alpha1.MonDepl
+	if err := r.Get(ctx, req.NamespacedName, &monDepl); err != nil {
+
+		if errors.IsNotFound(err) {
+			logger.Info("MonDepl cannot be found, seems to be deleted, will attempt to delete underlying...")
+			var underlying appsv1.Deployment
+			var underName = types.NamespacedName{
+				Name:      GetUnderlyingName(req.Name),
+				Namespace: req.Namespace,
+			}
+
+			if err := r.Get(ctx, underName, &underlying); err != nil {
+				if errors.IsNotFound(err) {
+					logger.Info("Underlying already deleted...")
+					return ctrl.Result{}, nil
+				} else {
+					logger.Error(err, "Could not get underlying...")
+					return ctrl.Result{}, err
+				}
+			}
+
+			logger.Info("Trying to delete underlying...")
+
+			if err := r.Delete(ctx, &underlying); err != nil {
+				logger.Error(err, "Fail to delete underlying...")
+				return ctrl.Result{Requeue: true}, err
+
+			}
+			return ctrl.Result{}, nil
+
+		} else {
+			logger.Error(err, "Could not get MonDepl...")
+			return ctrl.Result{}, client.IgnoreNotFound(err)
+		}
 	}
 
-	var underlying *appsv1.Deployment
+	var underlying appsv1.Deployment
 	var underName = types.NamespacedName{
 		Name:      GetUnderlyingName(req.Name),
 		Namespace: req.Namespace,
@@ -67,7 +97,7 @@ func (r *MonDeplReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	logger.Info("Trying to get underlying...")
 
-	if err := r.Get(ctx, underName, underlying); err != nil {
+	if err := r.Get(ctx, underName, &underlying); err != nil {
 		if errors.IsNotFound(err) && isDeleting {
 			logger.Info("Underlying already deleted...")
 			return ctrl.Result{}, nil
@@ -75,7 +105,7 @@ func (r *MonDeplReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			logger.Error(err, "Could not get underlying...")
 			return ctrl.Result{Requeue: true}, err
 		} else {
-			underlying = &appsv1.Deployment{
+			underlying = appsv1.Deployment{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      GetUnderlyingName(req.Name),
 					Namespace: req.Namespace,
@@ -83,24 +113,30 @@ func (r *MonDeplReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 				Spec: monDepl.Spec.Underlying,
 			}
 
-			if err := controllerutil.SetControllerReference(monDepl, underlying, r.Scheme); err != nil {
+			if err := controllerutil.SetControllerReference(&monDepl, &underlying, r.Scheme); err != nil {
 				logger.Error(err, "Could not set owner reference...")
 				return ctrl.Result{Requeue: true}, err
 			}
 
-			if err := r.Create(ctx, underlying); err != nil {
+			if err := r.Create(ctx, &underlying); err != nil {
 				logger.Error(err, "Could not create underlying...")
 				return ctrl.Result{Requeue: true}, err
 			}
 
 			logger.Info("Updating MonDepl status...")
-			underRef, err := ref.GetReference(r.Scheme, underlying)
+			underRef, err := ref.GetReference(r.Scheme, &underlying)
 			if err != nil {
 				logger.Error(err, "Could not get object reference for underlying...")
 				return ctrl.Result{Requeue: true}, err
 			}
 
 			monDepl.Status.Active = underRef
+			if err := r.Status().Update(ctx, &monDepl); err != nil {
+				logger.Error(err, "Could not update status of MonDepl...")
+
+				return ctrl.Result{Requeue: true}, err
+			}
+
 			return ctrl.Result{}, nil
 		}
 	}
@@ -109,7 +145,7 @@ func (r *MonDeplReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 		logger.Info("Trying to delete underlying...")
 
-		if err := r.Delete(ctx, underlying); err != nil {
+		if err := r.Delete(ctx, &underlying); err != nil {
 			logger.Error(err, "Fail to delete underlying...")
 			return ctrl.Result{Requeue: true}, err
 
@@ -119,7 +155,7 @@ func (r *MonDeplReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	logger.Info("Trying to set owner reference...")
 
-	if err := controllerutil.SetControllerReference(monDepl, underlying, r.Scheme); err != nil {
+	if err := controllerutil.SetControllerReference(&monDepl, &underlying, r.Scheme); err != nil {
 		logger.Error(err, "Could not set owner reference...")
 		return ctrl.Result{Requeue: true}, err
 	}
@@ -128,7 +164,7 @@ func (r *MonDeplReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	underlying.Spec = monDepl.Spec.Underlying
 
-	if err := r.Update(ctx, underlying); err != nil {
+	if err := r.Update(ctx, &underlying); err != nil {
 		logger.Error(err, "Could not update underlying...")
 		return ctrl.Result{Requeue: true}, nil
 	}
