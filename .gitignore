@@ -23,3 +23,5 @@ go.work
 # VSCode, delve, build stuff
 .vscode/
 bin/
+*lol.yaml
+*config/manager/kustomization.yaml
